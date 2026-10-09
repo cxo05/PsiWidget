@@ -150,26 +150,32 @@ private fun Header(selected: Metric, updated: OffsetDateTime?, offline: Boolean)
     val context = LocalContext.current
     Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Row(
-            modifier = GlanceModifier.background(Palette.seg).cornerRadius(14.dp).padding(3.dp),
+            modifier = GlanceModifier.background(Palette.seg).cornerRadius(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Metric.entries.forEach { metric ->
                 val on = metric == selected
+                // The outer Box is the tap target and covers the tray's inset too, so there are no dead gaps.
                 Box(
                     modifier = GlanceModifier
-                        .cornerRadius(11.dp)
-                        .background(if (on) Palette.segOn else Palette.clear)
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .padding(3.dp)
                         .clickable(actionRunCallback<SelectMetricAction>(actionParametersOf(SelectMetricAction.METRIC_PARAM to metric.key))),
                 ) {
-                    Text(
-                        text = metric.label,
-                        style = TextStyle(
-                            color = if (on) Palette.segOnFg else Palette.muted,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                    )
+                    Box(
+                        modifier = GlanceModifier
+                            .cornerRadius(13.dp)
+                            .background(if (on) Palette.segOn else Palette.clear)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text(
+                            text = metric.label,
+                            style = TextStyle(
+                                color = if (on) Palette.segOnFg else Palette.muted,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                        )
+                    }
                 }
             }
         }
