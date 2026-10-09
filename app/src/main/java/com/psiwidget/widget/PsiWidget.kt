@@ -86,13 +86,22 @@ private object Palette {
     val onBand = ColorProvider(day = Color(0xFFFFFFFF), night = Color(0xFF0E1513))
     val clear = ColorProvider(Color.Transparent)
 
-    fun band(band: Band?) = when (band) {
-        Band.GOOD -> ColorProvider(day = Color(0xFF1F9D55), night = Color(0xFF3FC07A))
-        Band.MODERATE -> ColorProvider(day = Color(0xFF2F7FD1), night = Color(0xFF5AA2EE))
-        Band.UNHEALTHY -> ColorProvider(day = Color(0xFFE8822A), night = Color(0xFFF19A4D))
-        Band.VERY_UNHEALTHY -> ColorProvider(day = Color(0xFFD23B3B), night = Color(0xFFEE6464))
-        Band.HAZARDOUS -> ColorProvider(day = Color(0xFF8A1F3D), night = Color(0xFFC8466A))
-        null -> line
+    private fun bandColors(band: Band?): Pair<Color, Color>? = when (band) {
+        Band.GOOD -> Color(0xFF1F9D55) to Color(0xFF3FC07A)
+        Band.MODERATE -> Color(0xFF2F7FD1) to Color(0xFF5AA2EE)
+        Band.UNHEALTHY -> Color(0xFFE8822A) to Color(0xFFF19A4D)
+        Band.VERY_UNHEALTHY -> Color(0xFFD23B3B) to Color(0xFFEE6464)
+        Band.HAZARDOUS -> Color(0xFF8A1F3D) to Color(0xFFC8466A)
+        null -> null
+    }
+
+    fun band(band: Band?) = bandColors(band)?.let { (day, night) -> ColorProvider(day = day, night = night) } ?: line
+
+    /** A faint wash of the band colour for a region's box; [strong] marks the user's own region. */
+    fun bandTint(band: Band?, strong: Boolean): ColorProvider {
+        val (day, night) = bandColors(band) ?: return seg
+        val (dayAlpha, nightAlpha) = if (strong) 0.26f to 0.32f else 0.10f to 0.14f
+        return ColorProvider(day = day.copy(alpha = dayAlpha), night = night.copy(alpha = nightAlpha))
     }
 }
 
@@ -280,7 +289,7 @@ private fun ColumnScope.Body(
 @Composable
 private fun ColumnScope.CompassRow(content: @Composable RowScope.() -> Unit) {
     Row(
-        modifier = GlanceModifier.fillMaxWidth().defaultWeight().padding(vertical = 1.dp),
+        modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
         verticalAlignment = Alignment.CenterVertically,
         content = content,
     )
@@ -295,32 +304,36 @@ private fun RowScope.RegionCell(
     stale: Boolean,
     compact: Boolean,
 ) {
-    val modifier = GlanceModifier.defaultWeight().fillMaxHeight().padding(end = 4.dp)
+    // Padding on an outer Box acts as the gutter; Glance applies padding inside a view's own background.
+    val slot = GlanceModifier.defaultWeight().fillMaxHeight().padding(end = 4.dp, top = 1.dp, bottom = 1.dp)
     if (region == null) {
-        Box(modifier = modifier) {}
+        Box(modifier = slot) {}
         return
     }
-    Row(
-        modifier = modifier.cornerRadius(6.dp).background(if (highlighted) Palette.seg else Palette.clear),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(modifier = GlanceModifier.width(3.dp).fillMaxHeight().background(Palette.band(snapshot.band(metric, region)))) {}
-        Spacer(GlanceModifier.width(6.dp))
-        Column(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = snapshot.value(metric, region)?.toString() ?: "--",
-                maxLines = 1,
-                style = TextStyle(
-                    color = if (stale) Palette.muted else Palette.fg,
-                    fontSize = if (compact) 15.sp else 19.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
-            Text(
-                text = region.label.uppercase(),
-                maxLines = 1,
-                style = TextStyle(color = Palette.muted, fontSize = if (compact) 8.sp else 9.sp),
-            )
+    val band = snapshot.band(metric, region)
+    Box(modifier = slot) {
+        Row(
+            modifier = GlanceModifier.fillMaxSize().cornerRadius(6.dp).background(Palette.bandTint(band, strong = highlighted)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(modifier = GlanceModifier.width(3.dp).fillMaxHeight().background(Palette.band(band))) {}
+            Spacer(GlanceModifier.width(6.dp))
+            Column(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = snapshot.value(metric, region)?.toString() ?: "--",
+                    maxLines = 1,
+                    style = TextStyle(
+                        color = if (stale) Palette.muted else Palette.fg,
+                        fontSize = if (compact) 15.sp else 19.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                )
+                Text(
+                    text = region.label.uppercase(),
+                    maxLines = 1,
+                    style = TextStyle(color = Palette.muted, fontSize = if (compact) 8.sp else 9.sp),
+                )
+            }
         }
     }
 }
