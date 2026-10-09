@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import androidx.core.content.ContextCompat
@@ -15,6 +16,7 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.psiwidget.data.Store
+import com.psiwidget.widget.WidgetSync
 import com.psiwidget.work.PsiRefreshWorker
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -49,9 +51,15 @@ class LocationActivity : ComponentActivity() {
         if (savedInstanceState != null) return
 
         when {
-            hasPermission(this) -> lifecycleScope.launch {
-                updateRegion()
-                finishAndRefresh()
+            hasPermission(this) -> {
+                // This window covers the home screen while it waits for a location; let taps through to it.
+                window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+                // The data fetch doesn't depend on location, so start it now rather than after the fix.
+                PsiRefreshWorker.refreshNow(this)
+                lifecycleScope.launch {
+                    if (updateRegion()) WidgetSync.pushToAll(applicationContext)
+                    finish()
+                }
             }
             // A refresh tap never asks for permission; only adding the widget or the explicit hint does.
             intent.getStringExtra(EXTRA_MODE) == MODE_REFRESH -> finishAndRefresh()
@@ -67,16 +75,23 @@ class LocationActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun updateRegion() {
+    /** Returns true if the saved region changed. */
+    private suspend fun updateRegion(): Boolean {
         val client = LocationServices.getFusedLocationProviderClient(this)
+        // The last known location is near-instant and accurate enough to pick one of five regions.
+        // Only wait for a fresh fix when the phone has none, and never for long.
         val location = runCatching {
-            withTimeoutOrNull(5_000) {
-                client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null).await()
-            } ?: client.lastLocation.await()
-        }.getOrNull() ?: return
+            withTimeoutOrNull(1_000) { client.lastLocation.await() }
+                ?: withTimeoutOrNull(3_000) {
+                    client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null).await()
+                }
+        }.getOrNull() ?: return false
 
         val locations = store.snapshot?.regionLocations?.takeIf { it.isNotEmpty() } ?: RegionResolver.DEFAULT_LOCATIONS
-        store.regionKey = RegionResolver.nearest(location.latitude, location.longitude, locations)?.key
+        val region = RegionResolver.nearest(location.latitude, location.longitude, locations)?.key
+        if (region == store.regionKey) return false
+        store.regionKey = region
+        return true
     }
 
     private fun finishAndRefresh() {
