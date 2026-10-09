@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PSI Widget</string>
+    <string name="widget_name">Singapore PSI</string>
+    <string name="widget_description">PSI, PM2.5 and PM10 for your part of Singapore, updated every 15 minutes.</string>
+</resources>
