@@ -115,7 +115,7 @@ private fun Content() {
     val prefs = currentState<Preferences>()
     val metric = Metric.fromKey(prefs[Keys.METRIC])
     val snapshot = prefs[Keys.SNAPSHOT]?.let { runCatching { AppJson.decodeFromString<PsiSnapshot>(it) }.getOrNull() }
-    val updated = snapshot?.updated?.let { runCatching { OffsetDateTime.parse(it) }.getOrNull() }
+    val updated = snapshot?.updated(metric)?.let { runCatching { OffsetDateTime.parse(it) }.getOrNull() }
     val offline = prefs[Keys.OFFLINE] ?: false
     val stale = offline || (updated != null && Duration.between(updated, OffsetDateTime.now()) > STALE_AFTER)
     val compact = LocalSize.current.height < 160.dp
@@ -185,7 +185,7 @@ private fun Header(selected: Metric, updated: OffsetDateTime?, offline: Boolean)
             text = when {
                 offline && time != null -> "Offline · $time"
                 offline -> "Offline"
-                time != null -> "24h · $time"
+                time != null -> "${selected.window} · $time"
                 else -> ""
             },
             maxLines = 1,
@@ -265,7 +265,7 @@ private fun ColumnScope.Body(
                         .padding(horizontal = 8.dp, vertical = 2.dp),
                 ) {
                     Text(
-                        text = focusBand.label,
+                        text = metric.bandLabel(focusBand),
                         maxLines = 1,
                         style = TextStyle(color = Palette.onBand, fontSize = 11.sp, fontWeight = FontWeight.Bold),
                     )
